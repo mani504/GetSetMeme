@@ -1,183 +1,42 @@
 import cv2
 import numpy as np
-import keras_ocr
-import matplotlib.pyplot as plt
-import math
-
-# Function to calculate the midpoint
-def midpoint(x1, y1, x2, y2):
-    return int((x1 + x2) / 2), int((y1 + y2) / 2)
-
-# Function to detect and inpaint characters
-def inpaint_text_by_character(img_path, pipeline):
-    # Read the image
-    img = keras_ocr.tools.read(img_path)
-    
-    # Recognize text and corresponding regions
-    prediction_groups = pipeline.recognize([img])
-    
-    # Create a mask for inpainting
-    mask = np.zeros(img.shape[:2], dtype="uint8")
-    
-    for word, box in prediction_groups[0]:
-        # Extract box coordinates
-        x0, y0 = box[0]
-        x1, y1 = box[1]
-        x2, y2 = box[2]
-        x3, y3 = box[3]
-        
-        # Width and height of the word bounding box
-        box_width = int(math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2))
-        box_height = int(math.sqrt((x3 - x0) ** 2 + (y3 - y0) ** 2))
-        
-        # Approximate width per character
-        num_chars = len(word)
-        char_width = box_width // num_chars
-
-        # For each character in the word, create a mask and inpaint
-        for i in range(num_chars):
-            # Compute character's x-coordinates (split the word box into equal segments)
-            char_x0 = int(x0 + i * char_width)
-            char_x1 = int(x0 + (i + 1) * char_width)
-
-            # Create the character mask (rectangle for now)
-            char_mask = np.array([
-                [char_x0, y0],
-                [char_x1, y1],
-                [char_x1, y2],
-                [char_x0, y3]
-            ], dtype=np.int32)
-
-            # Fill the mask region corresponding to the character
-            cv2.fillPoly(mask, [char_mask], 255)
-
-    # Visualize the mask (optional for debugging)
-    plt.imshow(mask, cmap='gray')
-    plt.show()
-
-    # Inpaint the masked text regions using cv2.INPAINT_TELEA
-    inpainted_img = cv2.inpaint(img, mask, 7, cv2.INPAINT_TELEA)
-    
-    # Show the final result
-    plt.imshow(inpainted_img)
-    plt.show()
-    
-    # Save the final image
-    cv2.imwrite('inpainted_characters_output.jpg', cv2.cvtColor(inpainted_img, cv2.COLOR_BGR2RGB))
-    
-    return inpainted_img
-
-# Initialize the OCR pipeline
-pipeline = keras_ocr.pipeline.Pipeline()
-
-# Call the function with the image path
-output_img = inpaint_text_by_character('traffic-signs.jpg', pipeline)
-
-# Display the final output
-plt.imshow(output_img)
-plt.show()
-
-
-
-
-_____________________/_________________________________/++++++++++++++++++++++++
-
-
-
-
-
-
-import cv2
-import numpy as np
-import pytesseract
-import matplotlib.pyplot as plt
-import math
-
-# Function to calculate the midpoint
-def midpoint(x1, y1, x2, y2):
-    return int((x1 + x2) / 2), int((y1 + y2) / 2)
-
-# Function to detect and inpaint characters
-def inpaint_text_by_character(img_path):
-    # Read the image
-    img = cv2.imread(img_path)
-    
-    # Convert image to RGB (Tesseract expects RGB)
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-    # Use Tesseract to detect text
-    data = pytesseract.image_to_data(img_rgb, output_type=pytesseract.Output.DICT)
-
-    # Create a mask for inpainting
-    mask = np.zeros(img.shape[:2], dtype="uint8")
-    
-    # Iterate through detected words
-    for i in range(len(data['text'])):
-        if int(data['conf'][i]) > 0:  # Confidence level
-            # Extract box coordinates
-            (x, y, w, h) = (data['left'][i], data['top'][i], data['width'][i], data['height'][i])
-            
-            # Create the character mask (rectangle for the word bounding box)
-            cv2.rectangle(mask, (x, y), (x + w, y + h), 255, -1)
-
-    # Visualize the mask (optional for debugging)
-    plt.imshow(mask, cmap='gray')
-    plt.show()
-
-    # Inpaint the masked text regions using cv2.INPAINT_TELEA
-    inpainted_img = cv2.inpaint(img, mask, 7, cv2.INPAINT_TELEA)
-    
-    # Show the final result
-    plt.imshow(cv2.cvtColor(inpainted_img, cv2.COLOR_BGR2RGB))
-    plt.axis('off')
-    plt.show()
-    
-    # Save the final image
-    cv2.imwrite('inpainted_characters_output.jpg', inpainted_img)
-
-    return inpainted_img
-
-# Call the function with the image path
-output_img = inpaint_text_by_character('traffic-signs.jpg')
-
-# Display the final output
-plt.imshow(cv2.cvtColor(output_img, cv2.COLOR_BGR2RGB))
-plt.axis('off')
-plt.show()
-
-
-...............................//....................................../............................
-
-import cv2
-import numpy as np
-import pytesseract
 import os
+import keras_ocr
 
 # Function to detect and inpaint characters
 def inpaint_text_by_character(img_path, output_dir):
     # Read the image
     img = cv2.imread(img_path)
     
-    # Convert image to RGB (Tesseract expects RGB)
+    # Convert image to RGB (needed for Keras OCR)
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-    # Use Tesseract to detect text
-    data = pytesseract.image_to_data(img_rgb, output_type=pytesseract.Output.DICT)
+    
+    # Initialize Keras OCR pipeline
+    pipeline = keras_ocr.pipeline.Pipeline()
+    
+    # Detect text using Keras OCR
+    prediction_groups = pipeline.recognize([img_rgb])
 
     # Create a mask for inpainting
     mask = np.zeros(img.shape[:2], dtype="uint8")
     
-    # Iterate through detected words
-    for i in range(len(data['text'])):
-        if int(data['conf'][i]) > 0:  # Confidence level
-            # Extract box coordinates
-            (x, y, w, h) = (data['left'][i], data['top'][i], data['width'][i], data['height'][i])
-            
-            # Create the character mask (rectangle for the word bounding box)
-            cv2.rectangle(mask, (x, y), (x + w, y + h), 255, -1)
+    # Iterate through detected words and create a mask
+    for prediction in prediction_groups[0]:
+        box = prediction[1]  # Get the bounding box of the word
+        x_min = int(min([point[0] for point in box]))
+        y_min = int(min([point[1] for point in box]))
+        x_max = int(max([point[0] for point in box]))
+        y_max = int(max([point[1] for point in box]))
+        
+        # Create the mask for inpainting (character-level)
+        cv2.rectangle(mask, (x_min, y_min), (x_max, y_max), 255, -1)
 
     # Inpaint the masked text regions using cv2.INPAINT_TELEA
     inpainted_img = cv2.inpaint(img, mask, 7, cv2.INPAINT_TELEA)
+
+    # Post-processing to remove leftover dots or artifacts
+    kernel = np.ones((3, 3), np.uint8)
+    inpainted_img = cv2.morphologyEx(inpainted_img, cv2.MORPH_CLOSE, kernel)  # Dilation followed by erosion
     
     # Save the final image
     filename = os.path.basename(img_path)
@@ -198,228 +57,3 @@ for filename in os.listdir(input_dir):
         inpaint_text_by_character(img_path, output_dir)
 
 print("Processing complete. Output images saved in 'outputTess' directory.")
-
-
-
-//////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-
-import cv2
-import numpy as np
-import easyocr
-import os
-
-# Function to detect and inpaint characters
-def inpaint_text_by_character(img_path, output_dir, reader):
-    # Read the image
-    img = cv2.imread(img_path)
-
-    # Use EasyOCR to detect text
-    results = reader.readtext(img)
-
-    # Create a mask for inpainting
-    mask = np.zeros(img.shape[:2], dtype="uint8")
-
-    # Iterate through detected words
-    for (bbox, text, prob) in results:
-        if prob > 0.5:  # Confidence level threshold
-            # Extract box coordinates
-            (top_left, top_right, bottom_right, bottom_left) = bbox
-            x0, y0 = int(top_left[0]), int(top_left[1])
-            x1, y1 = int(bottom_right[0]), int(bottom_right[1])
-            # Create the mask rectangle for the word bounding box
-            cv2.rectangle(mask, (x0, y0), (x1, y1), 255, -1)
-
-    # Inpaint the masked text regions using cv2.INPAINT_TELEA
-    inpainted_img = cv2.inpaint(img, mask, 7, cv2.INPAINT_TELEA)
-
-    # Save the final image
-    filename = os.path.basename(img_path)
-    output_path = os.path.join(output_dir, filename)
-    cv2.imwrite(output_path, inpainted_img)
-
-# Directory paths
-input_dir = 'input'
-output_dir = 'outputTess'
-
-# Create output directory if it doesn't exist
-os.makedirs(output_dir, exist_ok=True)
-
-# Initialize EasyOCR reader
-reader = easyocr.Reader(['en'])  # You can specify the languages you need
-
-# Process all images in the input directory
-for filename in os.listdir(input_dir):
-    if filename.lower().endswith(('.png', '.jpg', '.jpeg')):  # Check for image file extensions
-        img_path = os.path.join(input_dir, filename)
-        inpaint_text_by_character(img_path, output_dir, reader)
-
-print("Processing complete. Output images saved in 'outputTess' directory.")
-
-
-
-
-///////////////////////////////////////
-
-
-
-
-
-import cv2
-import numpy as np
-import keras_ocr
-from skimage.filters import variance
-from skimage.feature import canny
-import matplotlib.pyplot as plt
-import os
-
-# Function to calculate text density
-def is_text_sparse(prediction_groups):
-    total_word_boxes = len(prediction_groups[0])
-    
-    # Calculate the average distance between word boxes
-    avg_distance = 0
-    for i in range(1, total_word_boxes):
-        prev_box = prediction_groups[0][i-1][1]
-        curr_box = prediction_groups[0][i][1]
-        avg_distance += np.linalg.norm(np.array(prev_box[0]) - np.array(curr_box[0]))
-    
-    avg_distance /= max(1, total_word_boxes - 1)
-    
-    # Threshold: If average distance between word boxes is large, text is sparse
-    return avg_distance > 100  # Adjust threshold based on your images
-
-# Function to estimate background complexity
-def is_background_complex(img):
-    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    
-    # Calculate variance of pixel intensities
-    img_variance = variance(gray_img)
-    
-    # Alternatively, use edge detection to estimate background complexity
-    edges = canny(gray_img, sigma=2)
-    edge_density = np.mean(edges)
-    
-    # Set thresholds for variance and edge density to define complexity
-    return img_variance > 500 or edge_density > 0.05  # Adjust based on images
-
-# Function to detect and inpaint characters
-def inpaint_text_by_character(img_path, pipeline, output_dir):
-    # Read the image
-    img = keras_ocr.tools.read(img_path)
-    
-    # Recognize text and corresponding regions
-    prediction_groups = pipeline.recognize([img])
-    
-    # Create a mask for inpainting
-    mask = np.zeros(img.shape[:2], dtype="uint8")
-    
-    for word, box in prediction_groups[0]:
-        # Extract box coordinates
-        x0, y0 = box[0]
-        x1, y1 = box[1]
-        x2, y2 = box[2]
-        x3, y3 = box[3]
-        
-        # Width and height of the word bounding box
-        box_width = int(np.linalg.norm(np.array(box[1]) - np.array(box[0])))
-        box_height = int(np.linalg.norm(np.array(box[3]) - np.array(box[0])))
-        
-        # Approximate width per character
-        num_chars = len(word)
-        if num_chars == 0:
-            continue  # Avoid zero division error
-        
-        char_width = box_width // num_chars
-
-        # For each character, create a mask and inpaint
-        for i in range(num_chars):
-            char_x0 = int(x0 + i * char_width)
-            char_x1 = int(x0 + (i + 1) * char_width)
-
-            # Create the character mask
-            char_mask = np.array([[char_x0, y0], [char_x1, y1], [char_x1, y2], [char_x0, y3]], dtype=np.int32)
-            cv2.fillPoly(mask, [char_mask], 255)
-
-    # Inpaint the masked text regions using cv2.INPAINT_TELEA
-    inpainted_img = cv2.inpaint(img, mask, 7, cv2.INPAINT_TELEA)
-
-    # Save the final image
-    filename = os.path.basename(img_path)
-    output_path = os.path.join(output_dir, filename)
-    cv2.imwrite(output_path, cv2.cvtColor(inpainted_img, cv2.COLOR_BGR2RGB))
-
-# Function to remove text using word-level inpainting
-def remove_text_from_image(img_path, pipeline, output_dir):
-    # Read the image
-    img = keras_ocr.tools.read(img_path)
-
-    # Recognize text and corresponding regions
-    prediction_groups = pipeline.recognize([img])
-
-    # Create a mask for inpainting
-    mask = np.zeros(img.shape[:2], dtype="uint8")
-
-    # For each detected word, create a mask for the entire word
-    for word, box in prediction_groups[0]:
-        x0, y0 = box[0]
-        x1, y1 = box[1]
-        x2, y2 = box[2]
-        x3, y3 = box[3]
-        
-        # Create the word mask
-        word_mask = np.array([[x0, y0], [x1, y1], [x2, y2], [x3, y3]], dtype=np.int32)
-        cv2.fillPoly(mask, [word_mask], 255)
-
-    # Inpaint the masked text regions using cv2.INPAINT_TELEA
-    inpainted_img = cv2.inpaint(img, mask, 7, cv2.INPAINT_TELEA)
-
-    # Save the final image
-    filename = os.path.basename(img_path)
-    output_path = os.path.join(output_dir, filename)
-    cv2.imwrite(output_path, cv2.cvtColor(inpainted_img, cv2.COLOR_BGR2RGB))
-
-# Function to decide inpainting method
-def choose_inpainting_method(img_path, pipeline):
-    # Read the image
-    img = keras_ocr.tools.read(img_path)
-    
-    # Recognize text using Keras OCR
-    prediction_groups = pipeline.recognize([img])
-    
-    # Check if the text is sparse or dense
-    if is_text_sparse(prediction_groups):
-        return "character-level"
-    else:
-        return "word-level"
-
-# Directory paths
-input_dir = 'input'
-output_dir = 'output'
-
-# Create output directory if it doesn't exist
-os.makedirs(output_dir, exist_ok=True)
-
-# Initialize the OCR pipeline
-pipeline = keras_ocr.pipeline.Pipeline()
-
-# Process all images in the input directory
-for filename in os.listdir(input_dir):
-    if filename.lower().endswith(('.png', '.jpg', '.jpeg')):  # Check for image file extensions
-        img_path = os.path.join(input_dir, filename)
-        
-        # Choose inpainting method based on the image
-        inpainting_method = choose_inpainting_method(img_path, pipeline)
-        
-        # Apply the appropriate inpainting method
-        if inpainting_method == "character-level":
-            inpaint_text_by_character(img_path, pipeline, output_dir)
-        else:
-            remove_text_from_image(img_path, pipeline, output_dir)
-
-print("Processing complete. Output images saved in 'output' directory.")
-
-
