@@ -261,3 +261,165 @@ print("Processing complete. Output images saved in 'outputTess' directory.")
 
 
 
+
+///////////////////////////////////////
+
+
+
+
+
+import cv2
+import numpy as np
+import keras_ocr
+from skimage.filters import variance
+from skimage.feature import canny
+import matplotlib.pyplot as plt
+import os
+
+# Function to calculate text density
+def is_text_sparse(prediction_groups):
+    total_word_boxes = len(prediction_groups[0])
+    
+    # Calculate the average distance between word boxes
+    avg_distance = 0
+    for i in range(1, total_word_boxes):
+        prev_box = prediction_groups[0][i-1][1]
+        curr_box = prediction_groups[0][i][1]
+        avg_distance += np.linalg.norm(np.array(prev_box[0]) - np.array(curr_box[0]))
+    
+    avg_distance /= max(1, total_word_boxes - 1)
+    
+    # Threshold: If average distance between word boxes is large, text is sparse
+    return avg_distance > 100  # Adjust threshold based on your images
+
+# Function to estimate background complexity
+def is_background_complex(img):
+    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    
+    # Calculate variance of pixel intensities
+    img_variance = variance(gray_img)
+    
+    # Alternatively, use edge detection to estimate background complexity
+    edges = canny(gray_img, sigma=2)
+    edge_density = np.mean(edges)
+    
+    # Set thresholds for variance and edge density to define complexity
+    return img_variance > 500 or edge_density > 0.05  # Adjust based on images
+
+# Function to detect and inpaint characters
+def inpaint_text_by_character(img_path, pipeline, output_dir):
+    # Read the image
+    img = keras_ocr.tools.read(img_path)
+    
+    # Recognize text and corresponding regions
+    prediction_groups = pipeline.recognize([img])
+    
+    # Create a mask for inpainting
+    mask = np.zeros(img.shape[:2], dtype="uint8")
+    
+    for word, box in prediction_groups[0]:
+        # Extract box coordinates
+        x0, y0 = box[0]
+        x1, y1 = box[1]
+        x2, y2 = box[2]
+        x3, y3 = box[3]
+        
+        # Width and height of the word bounding box
+        box_width = int(np.linalg.norm(np.array(box[1]) - np.array(box[0])))
+        box_height = int(np.linalg.norm(np.array(box[3]) - np.array(box[0])))
+        
+        # Approximate width per character
+        num_chars = len(word)
+        if num_chars == 0:
+            continue  # Avoid zero division error
+        
+        char_width = box_width // num_chars
+
+        # For each character, create a mask and inpaint
+        for i in range(num_chars):
+            char_x0 = int(x0 + i * char_width)
+            char_x1 = int(x0 + (i + 1) * char_width)
+
+            # Create the character mask
+            char_mask = np.array([[char_x0, y0], [char_x1, y1], [char_x1, y2], [char_x0, y3]], dtype=np.int32)
+            cv2.fillPoly(mask, [char_mask], 255)
+
+    # Inpaint the masked text regions using cv2.INPAINT_TELEA
+    inpainted_img = cv2.inpaint(img, mask, 7, cv2.INPAINT_TELEA)
+
+    # Save the final image
+    filename = os.path.basename(img_path)
+    output_path = os.path.join(output_dir, filename)
+    cv2.imwrite(output_path, cv2.cvtColor(inpainted_img, cv2.COLOR_BGR2RGB))
+
+# Function to remove text using word-level inpainting
+def remove_text_from_image(img_path, pipeline, output_dir):
+    # Read the image
+    img = keras_ocr.tools.read(img_path)
+
+    # Recognize text and corresponding regions
+    prediction_groups = pipeline.recognize([img])
+
+    # Create a mask for inpainting
+    mask = np.zeros(img.shape[:2], dtype="uint8")
+
+    # For each detected word, create a mask for the entire word
+    for word, box in prediction_groups[0]:
+        x0, y0 = box[0]
+        x1, y1 = box[1]
+        x2, y2 = box[2]
+        x3, y3 = box[3]
+        
+        # Create the word mask
+        word_mask = np.array([[x0, y0], [x1, y1], [x2, y2], [x3, y3]], dtype=np.int32)
+        cv2.fillPoly(mask, [word_mask], 255)
+
+    # Inpaint the masked text regions using cv2.INPAINT_TELEA
+    inpainted_img = cv2.inpaint(img, mask, 7, cv2.INPAINT_TELEA)
+
+    # Save the final image
+    filename = os.path.basename(img_path)
+    output_path = os.path.join(output_dir, filename)
+    cv2.imwrite(output_path, cv2.cvtColor(inpainted_img, cv2.COLOR_BGR2RGB))
+
+# Function to decide inpainting method
+def choose_inpainting_method(img_path, pipeline):
+    # Read the image
+    img = keras_ocr.tools.read(img_path)
+    
+    # Recognize text using Keras OCR
+    prediction_groups = pipeline.recognize([img])
+    
+    # Check if the text is sparse or dense
+    if is_text_sparse(prediction_groups):
+        return "character-level"
+    else:
+        return "word-level"
+
+# Directory paths
+input_dir = 'input'
+output_dir = 'output'
+
+# Create output directory if it doesn't exist
+os.makedirs(output_dir, exist_ok=True)
+
+# Initialize the OCR pipeline
+pipeline = keras_ocr.pipeline.Pipeline()
+
+# Process all images in the input directory
+for filename in os.listdir(input_dir):
+    if filename.lower().endswith(('.png', '.jpg', '.jpeg')):  # Check for image file extensions
+        img_path = os.path.join(input_dir, filename)
+        
+        # Choose inpainting method based on the image
+        inpainting_method = choose_inpainting_method(img_path, pipeline)
+        
+        # Apply the appropriate inpainting method
+        if inpainting_method == "character-level":
+            inpaint_text_by_character(img_path, pipeline, output_dir)
+        else:
+            remove_text_from_image(img_path, pipeline, output_dir)
+
+print("Processing complete. Output images saved in 'output' directory.")
+
+
