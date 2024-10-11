@@ -1,0 +1,78 @@
+import cv2
+import numpy as np
+import keras_ocr
+import matplotlib.pyplot as plt
+import math
+
+# Function to calculate the midpoint
+def midpoint(x1, y1, x2, y2):
+    return int((x1 + x2) / 2), int((y1 + y2) / 2)
+
+# Function to detect and inpaint characters
+def inpaint_text_by_character(img_path, pipeline):
+    # Read the image
+    img = keras_ocr.tools.read(img_path)
+    
+    # Recognize text and corresponding regions
+    prediction_groups = pipeline.recognize([img])
+    
+    # Create a mask for inpainting
+    mask = np.zeros(img.shape[:2], dtype="uint8")
+    
+    for word, box in prediction_groups[0]:
+        # Extract box coordinates
+        x0, y0 = box[0]
+        x1, y1 = box[1]
+        x2, y2 = box[2]
+        x3, y3 = box[3]
+        
+        # Width and height of the word bounding box
+        box_width = int(math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2))
+        box_height = int(math.sqrt((x3 - x0) ** 2 + (y3 - y0) ** 2))
+        
+        # Approximate width per character
+        num_chars = len(word)
+        char_width = box_width // num_chars
+
+        # For each character in the word, create a mask and inpaint
+        for i in range(num_chars):
+            # Compute character's x-coordinates (split the word box into equal segments)
+            char_x0 = int(x0 + i * char_width)
+            char_x1 = int(x0 + (i + 1) * char_width)
+
+            # Create the character mask (rectangle for now)
+            char_mask = np.array([
+                [char_x0, y0],
+                [char_x1, y1],
+                [char_x1, y2],
+                [char_x0, y3]
+            ], dtype=np.int32)
+
+            # Fill the mask region corresponding to the character
+            cv2.fillPoly(mask, [char_mask], 255)
+
+    # Visualize the mask (optional for debugging)
+    plt.imshow(mask, cmap='gray')
+    plt.show()
+
+    # Inpaint the masked text regions using cv2.INPAINT_TELEA
+    inpainted_img = cv2.inpaint(img, mask, 7, cv2.INPAINT_TELEA)
+    
+    # Show the final result
+    plt.imshow(inpainted_img)
+    plt.show()
+    
+    # Save the final image
+    cv2.imwrite('inpainted_characters_output.jpg', cv2.cvtColor(inpainted_img, cv2.COLOR_BGR2RGB))
+    
+    return inpainted_img
+
+# Initialize the OCR pipeline
+pipeline = keras_ocr.pipeline.Pipeline()
+
+# Call the function with the image path
+output_img = inpaint_text_by_character('traffic-signs.jpg', pipeline)
+
+# Display the final output
+plt.imshow(output_img)
+plt.show()
