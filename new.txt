@@ -201,3 +201,63 @@ print("Processing complete. Output images saved in 'outputTess' directory.")
 
 
 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+import cv2
+import numpy as np
+import easyocr
+import os
+
+# Function to detect and inpaint characters
+def inpaint_text_by_character(img_path, output_dir, reader):
+    # Read the image
+    img = cv2.imread(img_path)
+
+    # Use EasyOCR to detect text
+    results = reader.readtext(img)
+
+    # Create a mask for inpainting
+    mask = np.zeros(img.shape[:2], dtype="uint8")
+
+    # Iterate through detected words
+    for (bbox, text, prob) in results:
+        if prob > 0.5:  # Confidence level threshold
+            # Extract box coordinates
+            (top_left, top_right, bottom_right, bottom_left) = bbox
+            x0, y0 = int(top_left[0]), int(top_left[1])
+            x1, y1 = int(bottom_right[0]), int(bottom_right[1])
+            # Create the mask rectangle for the word bounding box
+            cv2.rectangle(mask, (x0, y0), (x1, y1), 255, -1)
+
+    # Inpaint the masked text regions using cv2.INPAINT_TELEA
+    inpainted_img = cv2.inpaint(img, mask, 7, cv2.INPAINT_TELEA)
+
+    # Save the final image
+    filename = os.path.basename(img_path)
+    output_path = os.path.join(output_dir, filename)
+    cv2.imwrite(output_path, inpainted_img)
+
+# Directory paths
+input_dir = 'input'
+output_dir = 'outputTess'
+
+# Create output directory if it doesn't exist
+os.makedirs(output_dir, exist_ok=True)
+
+# Initialize EasyOCR reader
+reader = easyocr.Reader(['en'])  # You can specify the languages you need
+
+# Process all images in the input directory
+for filename in os.listdir(input_dir):
+    if filename.lower().endswith(('.png', '.jpg', '.jpeg')):  # Check for image file extensions
+        img_path = os.path.join(input_dir, filename)
+        inpaint_text_by_character(img_path, output_dir, reader)
+
+print("Processing complete. Output images saved in 'outputTess' directory.")
+
+
+
