@@ -3,89 +3,99 @@ import numpy as np
 import keras_ocr
 import matplotlib.pyplot as plt
 import math
+import os
 
 # Function to calculate the midpoint
 def midpoint(x1, y1, x2, y2):
     return int((x1 + x2) / 2), int((y1 + y2) / 2)
 
 # Function to detect and inpaint characters
-def inpaint_text_by_character(img_path, pipeline):
-    # Read the image
-    img = keras_ocr.tools.read(img_path)
-    
-    # Recognize text and corresponding regions
-    prediction_groups = pipeline.recognize([img])
-    
-    # Create a mask for inpainting
-    mask = np.zeros(img.shape[:2], dtype="uint8")
-    
-    for word, box in prediction_groups[0]:
-        # Check if any characters were detected
-        if len(word) == 0:
-            continue  # Skip empty word detections
-        
-        # Extract box coordinates
-        x0, y0 = box[0]
-        x1, y1 = box[1]
-        x2, y2 = box[2]
-        x3, y3 = box[3]
-        
-        # Width and height of the word bounding box
-        box_width = int(math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2))
-        box_height = int(math.sqrt((x3 - x0) ** 2 + (y3 - y0) ** 2))
-        
-        # Approximate width per character
-        num_chars = len(word)
-        
-        # Ensure num_chars is not zero to avoid ZeroDivisionError
-        if num_chars > 0:
-            char_width = box_width // num_chars
-        else:
-            continue  # Skip if num_chars is zero
-        
-        # For each character in the word, create a mask and inpaint
-        for i in range(num_chars):
-            # Compute character's x-coordinates (split the word box into equal segments)
-            char_x0 = int(x0 + i * char_width)
-            char_x1 = int(x0 + (i + 1) * char_width)
+def inpaint_text_by_character(input_dir, output_dir, pipeline):
+    # Create output directory if it does not exist
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
-            # Create the character mask (rectangle for now)
-            char_mask = np.array([
-                [char_x0, y0],
-                [char_x1, y1],
-                [char_x1, y2],
-                [char_x0, y3]
-            ], dtype=np.int32)
+    # Process each image in the input directory
+    for filename in os.listdir(input_dir):
+        if filename.endswith(('.jpg', '.jpeg', '.png')):  # Check for image file types
+            img_path = os.path.join(input_dir, filename)
+            print(f'Processing image: {img_path}')
+            
+            # Read the image
+            img = keras_ocr.tools.read(img_path)
+            
+            # Recognize text and corresponding regions
+            prediction_groups = pipeline.recognize([img])
+            
+            # Create a mask for inpainting
+            mask = np.zeros(img.shape[:2], dtype="uint8")
+            
+            for word, box in prediction_groups[0]:
+                # Check if any characters were detected
+                if len(word) == 0:
+                    continue  # Skip empty word detections
+                
+                # Extract box coordinates
+                x0, y0 = box[0]
+                x1, y1 = box[1]
+                x2, y2 = box[2]
+                x3, y3 = box[3]
+                
+                # Width and height of the word bounding box
+                box_width = int(math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2))
+                box_height = int(math.sqrt((x3 - x0) ** 2 + (y3 - y0) ** 2))
+                
+                # Approximate width per character
+                num_chars = len(word)
+                
+                # Ensure num_chars is not zero to avoid ZeroDivisionError
+                if num_chars > 0:
+                    char_width = box_width // num_chars
+                else:
+                    continue  # Skip if num_chars is zero
+                
+                # For each character in the word, create a mask and inpaint
+                for i in range(num_chars):
+                    # Compute character's x-coordinates (split the word box into equal segments)
+                    char_x0 = int(x0 + i * char_width)
+                    char_x1 = int(x0 + (i + 1) * char_width)
 
-            # Fill the mask region corresponding to the character
-            cv2.fillPoly(mask, [char_mask], 255)
+                    # Create the character mask (rectangle for now)
+                    char_mask = np.array([
+                        [char_x0, y0],
+                        [char_x1, y1],
+                        [char_x1, y2],
+                        [char_x0, y3]
+                    ], dtype=np.int32)
 
-    # Visualize the mask (optional for debugging)
-    plt.imshow(mask, cmap='gray')
-    plt.show()
+                    # Fill the mask region corresponding to the character
+                    cv2.fillPoly(mask, [char_mask], 255)
 
-    # Inpaint the masked text regions using cv2.INPAINT_TELEA
-    inpainted_img = cv2.inpaint(img, mask, 7, cv2.INPAINT_TELEA)
-    
-    # Post-processing to remove leftover dots or artifacts
-    kernel = np.ones((3, 3), np.uint8)
-    inpainted_img = cv2.morphologyEx(inpainted_img, cv2.MORPH_CLOSE, kernel)  # Dilation followed by erosion
+            # Visualize the mask (optional for debugging)
+            plt.imshow(mask, cmap='gray')
+            plt.show()
 
-    # Show the final result
-    plt.imshow(inpainted_img)
-    plt.show()
-    
-    # Save the final image
-    cv2.imwrite('inpainted_characters_output.jpg', cv2.cvtColor(inpainted_img, cv2.COLOR_BGR2RGB))
-    
-    return inpainted_img
+            # Inpaint the masked text regions using cv2.INPAINT_TELEA
+            inpainted_img = cv2.inpaint(img, mask, 7, cv2.INPAINT_TELEA)
+            
+            # Post-processing to remove leftover dots or artifacts
+            kernel = np.ones((3, 3), np.uint8)
+            inpainted_img = cv2.morphologyEx(inpainted_img, cv2.MORPH_CLOSE, kernel)  # Dilation followed by erosion
+
+            # Save the final image to the output directory
+            output_path = os.path.join(output_dir, filename)
+            cv2.imwrite(output_path, cv2.cvtColor(inpainted_img, cv2.COLOR_BGR2RGB))
+            print(f'Saved inpainted image to: {output_path}')
 
 # Initialize the OCR pipeline
 pipeline = keras_ocr.pipeline.Pipeline()
 
-# Call the function with the image path
-output_img = inpaint_text_by_character('traffic-signs.jpg', pipeline)
+# Set the input and output directories
+input_directory = 'path_to_input_directory'  # Replace with your input directory path
+output_directory = 'path_to_output_directory'  # Replace with your output directory path
 
-# Display the final output
-plt.imshow(output_img)
-plt.show()
+# Call the function to process images
+inpaint_text_by_character(input_directory, output_directory, pipeline)
+
+# Display a message when done
+print('Processing completed.')
