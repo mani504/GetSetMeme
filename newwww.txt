@@ -112,3 +112,103 @@ def get_most_frequent_boundary_color(image, boundary_coords, boundary_thickness)
 
 
 
+
+
+
+
+
+
+import cv2
+import numpy as np
+import json
+
+# Function to enlarge the rectangle by a specified amount
+def enlarge_rectangle(points, enlargement_size, img_shape):
+    x1, y1 = points[0]
+    x2, y2 = points[1]
+    
+    # Ensure that enlargement stays within image bounds
+    x1 = max(0, x1 - enlargement_size)
+    y1 = max(0, y1 - enlargement_size)
+    x2 = min(img_shape[1], x2 + enlargement_size)
+    y2 = min(img_shape[0], y2 + enlargement_size)
+    
+    return [(int(x1), int(y1)), (int(x2), int(y2))]
+
+# Function to find the most frequent color in the boundary region
+def get_most_frequent_boundary_color(image, boundary_coords, boundary_thickness):
+    boundary_x1, boundary_y1 = boundary_coords[0]
+    boundary_x2, boundary_y2 = boundary_coords[1]
+
+    # Extract boundary pixels: top, bottom, left, and right
+    top_boundary = image[boundary_y1:boundary_y1 + boundary_thickness, boundary_x1:boundary_x2]
+    bottom_boundary = image[boundary_y2 - boundary_thickness:boundary_y2, boundary_x1:boundary_x2]
+    left_boundary = image[boundary_y1:boundary_y2, boundary_x1:boundary_x1 + boundary_thickness]
+    right_boundary = image[boundary_y1:boundary_y2, boundary_x2 - boundary_thickness:boundary_x2]
+
+    # Concatenate all boundary regions into a single array
+    boundary_pixels = np.concatenate([top_boundary, bottom_boundary, left_boundary, right_boundary], axis=0)
+
+    # Find the most frequent pixel color in the boundary
+    pixels_flat = boundary_pixels.reshape(-1, boundary_pixels.shape[-1])
+    unique, counts = np.unique(pixels_flat, axis=0, return_counts=True)
+    most_frequent_color = unique[np.argmax(counts)]
+    
+    return most_frequent_color
+
+# Function to fill the rectangle with the most frequent boundary color
+def fill_rectangle_with_color(image, rect_coords, color):
+    x1, y1 = rect_coords[0]
+    x2, y2 = rect_coords[1]
+    
+    # Fill the rectangle with the specified color
+    image[y1:y2, x1:x2] = color
+    return image
+
+# Main function to process the image and fill rectangles
+def process_image(image_path, json_path, enlargement_size=5, boundary_thickness=3):
+    # Load the image
+    image = cv2.imread(image_path)
+
+    # Load the JSON file with rectangle coordinates
+    with open(json_path, 'r') as f:
+        rectangles = json.load(f)['rectangles']
+
+    for rect in rectangles:
+        # Extract the original rectangle coordinates
+        rect_coords = [(rect['x1'], rect['y1']), (rect['x2'], rect['y2'])]
+        
+        # Enlarge the rectangle to account for the borders and shadows
+        enlarged_rect = enlarge_rectangle(rect_coords, enlargement_size, image.shape)
+        
+        # Get the most frequent color from the boundary of the enlarged rectangle
+        most_frequent_color = get_most_frequent_boundary_color(image, enlarged_rect, boundary_thickness)
+        
+        # Fill the actual rectangle with the most frequent boundary color
+        image = fill_rectangle_with_color(image, rect_coords, most_frequent_color)
+
+    return image
+
+# Script execution part
+if __name__ == "__main__":
+    image_path = '/mnt/data/file-HIrz4mnILZt7mr5bolpWhW4r'  # Path to your image file
+    json_path = '/mnt/data/file-1cigKgq5lPSVipin1AJPCWfY'  # Path to your JSON file
+
+    # Process the image with rectangles filled
+    result_image = process_image(image_path, json_path)
+
+    # Save the result image to check output
+    cv2.imwrite("/mnt/data/result_image.png", result_image)
+
+
+
+
+
+
+
+
+
+
+
+
+
