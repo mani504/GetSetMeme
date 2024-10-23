@@ -599,3 +599,43 @@ def get_most_frequent_boundary_color(image, boundary_coords, inner_rect_coords):
     return overall_color
 
 
+
+
+
+# Function to get the most frequent color around the rectangle's boundaries
+def get_most_frequent_boundary_color(image, boundary_coords, inner_rect_coords):
+    boundary_x1, boundary_y1 = boundary_coords[0]
+    boundary_x2, boundary_y2 = boundary_coords[1]
+    
+    inner_x1, inner_y1 = inner_rect_coords[0]
+    inner_x2, inner_y2 = inner_rect_coords[1]
+
+    # Store the most frequent colors in each boundary
+    frequent_colors = []
+
+    # Top boundary
+    if inner_y1 > boundary_y1:
+        top_boundary = image[boundary_y1:inner_y1, boundary_x1:boundary_x2]
+        frequent_colors.append(tuple(get_most_frequent_color_in_boundary(top_boundary)))
+    
+    # Bottom boundary
+    if boundary_y2 > inner_y2:
+        bottom_boundary = image[inner_y2:boundary_y2, boundary_x1:boundary_x2]
+        frequent_colors.append(tuple(get_most_frequent_color_in_boundary(bottom_boundary)))
+    
+    # Left boundary
+    if inner_x1 > boundary_x1:
+        left_boundary = image[inner_y1:inner_y2, boundary_x1:inner_x1]
+        frequent_colors.append(tuple(get_most_frequent_color_in_boundary(left_boundary)))
+    
+    # Right boundary
+    if boundary_x2 > inner_x2:
+        right_boundary = image[inner_y1:inner_y2, inner_x2:boundary_x2]
+        frequent_colors.append(tuple(get_most_frequent_color_in_boundary(right_boundary)))
+
+    # Find the most frequent color across all boundaries
+    overall_color = max(set(frequent_colors), key=frequent_colors.count)
+    
+    return overall_color
+
+
