@@ -304,3 +304,38 @@ if __name__ == "__main__":
     output_image_path = "/mnt/data/result_image.png"
     cv2.imwrite(output_image_path, result_image)
     print(f"Processed image saved at {output_image_path}")
+
+
+
+
+
+
+
+
+def get_most_frequent_boundary_color(image, boundary_coords, boundary_thickness):
+    boundary_x1, boundary_y1 = boundary_coords[0]
+    boundary_x2, boundary_y2 = boundary_coords[1]
+
+    # Extract boundary pixels: top, bottom, left, and right
+    top_boundary = image[boundary_y1:boundary_y1 + boundary_thickness, boundary_x1:boundary_x2]
+    bottom_boundary = image[boundary_y2 - boundary_thickness:boundary_y2, boundary_x1:boundary_x2]
+    left_boundary = image[boundary_y1:boundary_y2, boundary_x1:boundary_x1 + boundary_thickness]
+    right_boundary = image[boundary_y1:boundary_y2, boundary_x2 - boundary_thickness:boundary_x2]
+
+    # Make sure all boundary arrays have the same number of columns (width) by padding
+    max_width = max(top_boundary.shape[1], bottom_boundary.shape[1], left_boundary.shape[1], right_boundary.shape[1])
+
+    top_boundary = np.pad(top_boundary, ((0, 0), (0, max_width - top_boundary.shape[1]), (0, 0)), mode='constant')
+    bottom_boundary = np.pad(bottom_boundary, ((0, 0), (0, max_width - bottom_boundary.shape[1]), (0, 0)), mode='constant')
+    left_boundary = np.pad(left_boundary, ((0, 0), (0, max_width - left_boundary.shape[1]), (0, 0)), mode='constant')
+    right_boundary = np.pad(right_boundary, ((0, 0), (0, max_width - right_boundary.shape[1]), (0, 0)), mode='constant')
+
+    # Concatenate all boundary regions into a single array
+    boundary_pixels = np.concatenate([top_boundary, bottom_boundary, left_boundary, right_boundary], axis=0)
+
+    # Find the most frequent pixel color in the boundary
+    pixels_flat = boundary_pixels.reshape(-1, boundary_pixels.shape[-1])
+    unique, counts = np.unique(pixels_flat, axis=0, return_counts=True)
+    most_frequent_color = unique[np.argmax(counts)]
+    
+    return most_frequent_color
