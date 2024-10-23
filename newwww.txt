@@ -479,3 +479,45 @@ if __name__ == "__main__":
     # Save the result image to check output
     cv2.imwrite("/mnt/data/result_image.png", result_image)
 
+
+
+
+
+
+
+def get_most_frequent_boundary_color(image, outer_boundary_coords, inner_rect_coords):
+    boundary_x1, boundary_y1 = outer_boundary_coords[0]
+    boundary_x2, boundary_y2 = outer_boundary_coords[1]
+    
+    inner_x1, inner_y1 = inner_rect_coords[0]
+    inner_x2, inner_y2 = inner_rect_coords[1]
+
+    boundary_pixels = []
+
+    # Extract boundary pixels: the area between outer boundary and inner enlarged rectangle
+    if inner_y1 > boundary_y1:
+        top_boundary = image[boundary_y1:inner_y1, boundary_x1:boundary_x2]
+        boundary_pixels.append(top_boundary)
+    
+    if boundary_y2 > inner_y2:
+        bottom_boundary = image[inner_y2:boundary_y2, boundary_x1:boundary_x2]
+        boundary_pixels.append(bottom_boundary)
+    
+    if inner_x1 > boundary_x1:
+        left_boundary = image[inner_y1:inner_y2, boundary_x1:inner_x1]
+        boundary_pixels.append(left_boundary)
+    
+    if boundary_x2 > inner_x2:
+        right_boundary = image[inner_y1:inner_y2, inner_x2:boundary_x2]
+        boundary_pixels.append(right_boundary)
+
+    # Concatenate all boundary regions into a single array
+    if boundary_pixels:
+        boundary_pixels = np.vstack(boundary_pixels)  # Use vstack to avoid axis mismatch
+
+    # Find the most frequent pixel color in the boundary
+    pixels_flat = boundary_pixels.reshape(-1, boundary_pixels.shape[-1])
+    unique, counts = np.unique(pixels_flat, axis=0, return_counts=True)
+    most_frequent_color = unique[np.argmax(counts)]
+    
+    return most_frequent_color
