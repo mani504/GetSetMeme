@@ -85,3 +85,30 @@ def process_image(image_path, json_path, enlargement_size=5, boundary_thickness=
 image_path = '/mnt/data/file-HIrz4mnILZt7mr5bolpWhW4r'  # Path to the input image
 json_path = '/mnt/data/file-1cigKgq5lPSVipin1AJPCWfY'   # Path to the input JSON
 process_image(image_path, json_path, enlargement_size=10, boundary_thickness=15)
+
+
+
+
+# Function to find the most frequent boundary color
+def get_most_frequent_boundary_color(image, boundary_coords, boundary_thickness):
+    boundary_x1, boundary_y1 = boundary_coords[0]
+    boundary_x2, boundary_y2 = boundary_coords[1]
+
+    # Extract top, bottom, left, and right boundary regions
+    top_boundary = image[boundary_y1:boundary_y1 + boundary_thickness, boundary_x1:boundary_x2]
+    bottom_boundary = image[boundary_y2 - boundary_thickness:boundary_y2, boundary_x1:boundary_x2]
+    left_boundary = image[boundary_y1:boundary_y2, boundary_x1:boundary_x1 + boundary_thickness]
+    right_boundary = image[boundary_y1:boundary_y2, boundary_x2 - boundary_thickness:boundary_x2]
+
+    # Concatenate all boundary regions into a single array
+    boundary_pixels = np.concatenate([top_boundary, bottom_boundary, left_boundary, right_boundary], axis=0)
+
+    # Find the most frequent pixel color in the boundary
+    most_frequent_color = np.bincount(boundary_pixels.reshape(-1, 3), axis=0).argmax()
+
+    return most_frequent_color
+
+
+
+
+
